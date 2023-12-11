@@ -12,8 +12,10 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/magiconair/properties"
 	"github.com/pingcap/go-ycsb/pkg/prop"
+	"github.com/pingcap/go-ycsb/pkg/util"
 	"github.com/pingcap/go-ycsb/pkg/ycsb"
 	"log"
+	"reflect"
 	"strings"
 	"time"
 )
@@ -63,9 +65,20 @@ func (r *dynamodbWrapper) Read(ctx context.Context, table string, key string, fi
 	if err != nil {
 		log.Printf("Couldn't get info about %v. Here's why: %v\n", key, err)
 	} else {
-		err = attributevalue.UnmarshalMap(response.Item, &data)
-		if err != nil {
-			log.Printf("Couldn't unmarshal response. Here's why: %v\n", err)
+
+		for k, v := range response.Item {
+			if k == r.primarykey {
+				continue
+			}
+			switch v.(type) {
+			case *types.AttributeValueMemberB:
+				data[k] = v.(*types.AttributeValueMemberB).Value
+			case *types.AttributeValueMemberS:
+				str := v.(*types.AttributeValueMemberS).Value
+				data[k] = util.Slice(str)
+			default:
+				log.Printf("Couldn't unmarshal response. Here's why: unsupport item type %v\n", reflect.TypeOf(v))
+			}
 		}
 	}
 	return
